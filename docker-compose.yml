@@ -1,0 +1,122 @@
+version: '3'
+services:
+  nginx:
+    image: nginx:stable
+    container_name: nginx
+    restart: on-failure:3
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/log:/var/log/nginx
+      # 尽量不要使用dockerfile copy，因为如果变更了配置需要重新build
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      # 默认当前目录，路径具体语法见 https://docs.docker.com/compose/compose-file/#variable-substitution
+      - ${DOCUMENT_ROOT-.}:/srv/www
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8800-8810:8800-8810"
+    environment:
+      TZ: Asia/Shanghai
+    working_dir: /srv/www
+
+  mysql:
+    image: mysql:5.7
+    container_name: mysql
+    restart: on-failure:3
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql/data:/var/lib/mysql
+      # 此目录下优先级更高
+      - ./mysql/my.cnf:/etc/mysql/conf.d/mysql.cnf
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: Asia/Shanghai
+
+  redis:
+    image: redis:6
+    container_name: redis
+    restart: on-failure:3
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis/data:/data
+      - ./redis/redis.conf:/etc/redis/redis.conf
+    command: redis-server /etc/redis/redis.conf
+    #command: redis-server /etc/redis/redis.conf --requirepass ${REDIS_PASSWORD}
+
+  php5:
+    build:
+      context: ./php5
+      args:
+        - INSTALL_XDEBUG=${INSTALL_XDEBUG}
+    container_name: php5
+    image: local/php:5.6
+    restart: on-failure:3
+    depends_on:
+      - mysql
+      - redis
+    volumes:
+      - ${DOCUMENT_ROOT-.}:/srv/www
+      - ./php5/conf.d/php.ini:/usr/local/etc/php/conf.d/php.ini
+      - ./php5/ext/shopnc.so:/usr/local/lib/php/extensions/no-debug-non-zts-20131226/shopnc.so
+      - ./php5/php-fpm.d/www.conf:/usr/local/etc/php-fpm.d/www.conf
+    working_dir: /srv/www
+
+  php8:
+    build:
+      context: ./php8
+      args:
+        - INSTALL_XDEBUG=${INSTALL_XDEBUG}
+    container_name: php8
+    image: local/php:8.0
+    restart: on-failure:3
+    ports:
+      - "18000:8000"
+    depends_on:
+      - mysql
+      - redis
+    volumes:
+      - ${DOCUMENT_ROOT-.}:/srv/www
+      - ./php8/conf.d/php.ini:/usr/local/etc/php/conf.d/php.ini
+      - ./php8/php-fpm.d/www.conf:/usr/local/etc/php-fpm.d/www.conf
+    working_dir: /srv/www
+
+  # php7:
+  #   build:
+  #     context: ./php7
+  #     args:
+  #       - INSTALL_XDEBUG=${INSTALL_XDEBUG}
+  #   container_name: php7
+  #   image: local/php:7.4
+  #   restart: on-failure:3
+  #   depends_on:
+  #     - mysql
+  #     - redis
+  #   volumes:
+  #     - ${DOCUMENT_ROOT-.}:/srv/www
+  #     - ./php7/conf.d/php.ini:/usr/local/etc/php/conf.d/php.ini
+  #     - ./php7/php-fpm.d/www.conf:/usr/local/etc/php-fpm.d/www.conf
+  #   working_dir: /srv/www
+
+  xunserach:
+    image: hightman/xunsearch
+    container_name: xunsearch
+    restart: on-failure:3
+    working_dir: /usr/local/xunsearch
+    volumes:
+      - ./xunsearch/data:/usr/local/xunsearch/data
+
+  rabbitmq:
+    image: rabbitmq:3.8-management
+    container_name: rabbitmq
+    restart: on-failure:3
+    ports:
+      - 15672:15672
+      - 5672:5672
+    environment:
+      RABBITMQ_DEFAULT_USER : admin
+      RABBITMQ_DEFAULT_PASS : admin
+    volumes:
+      - ./rabbitmq/data:/var/lib/rabbitmq
+      - ./rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf

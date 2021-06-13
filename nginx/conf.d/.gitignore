@@ -1,0 +1,5 @@
+*
+!.gitignore
+!default.conf
+!rp-field.conf
+!*.example
